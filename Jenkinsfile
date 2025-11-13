@@ -62,15 +62,15 @@ pipeline{
         }
         stage("TRIVY Image Scan"){
             steps{
-                sh "trivy image acecloudacademy/hotstar:latest > trivyimage.txt" 
+                sh "trivy image manushreem/hotstar:latest > trivyimage.txt" 
             }
         }
         stage(" Docker Push"){
             steps{
                 script{
                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker tag hotstar acecloudacademy/hotstar:latest "
-                       sh "docker push acecloudacademy/hotstar:latest "
+                       sh "docker tag hotstar manushreem/hotstar:latest "
+                       sh "docker push manushreem/hotstar:latest "
                     }
                 }
             }
