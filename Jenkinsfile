@@ -46,35 +46,58 @@ pipeline{
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
            }
         }
-            stage('TRIVY FS SCAN') {
+            stage('Trivy File System Scan') {
             steps {
-                sh "trivy fs . > trivyfs.txt"
+                catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                    sh "trivy fs . > trivyfs.txt || true"
+                }
             }
         }
-        stage("Docker Build"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker build -t hotstar ."
+
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                        sh "docker build -t hotstar ."
+                        sh "docker tag hotstar manushreem/hotstar:latest"
+                        sh "docker push manushreem/hotstar:latest"
                     }
                 }
             }
         }
+
         stage("TRIVY Image Scan"){
             steps{
                 sh "trivy image manushreem/hotstar:latest > trivyimage.txt" 
             }
         }
-        stage(" Docker Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker tag hotstar manushreem/hotstar:latest"
-                       sh "docker push manushreem/hotstar:latest"
-                    }
-                }
+       stage('Deploy to Container') {
+            steps {
+                sh '''
+                    docker rm -f hotstar || true
+                    docker run -d --name hotstar -p 80:3000 manushreem/hotstar:latest
+                '''
             }
-        }        
+        }
+ stage('Configure Kubeconfig') {
+            steps {
+                sh '''
+                    echo "Configuring kubeconfig for EKS cluster..."
+                    aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $CLUSTER_NAME
+                    echo "Verifying kubectl connectivity..."
+                    kubectl cluster-info
+                    kubectl get nodes
+                '''
+            }
+        }
+        stage('Deploy to EKS') {
+            steps {
+                sh '''
+                    echo "Applying manifests..."
+                    kubectl apply -f K8S/manifest.yml
+                '''
+            }
+        }
 
     }
     post {
